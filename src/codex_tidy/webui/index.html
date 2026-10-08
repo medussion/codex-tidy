@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codex-tidy</title>
+<style>
+:root{
+  --bg:#f7f7f8; --panel:#fff; --line:#e3e3e6; --ink:#1b1b1f; --muted:#6b6b73;
+  --accent:#1c6b5e; --accent-ink:#fff;
+  --now:#a3341f; --now-bg:#fdeeea; --soon:#8a6100; --soon-bg:#fdf5e2;
+  --fine:#1c6b5e; --fine-bg:#e8f4f0; --danger:#a3341f; --danger-bg:#fdeeea;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#161618; --panel:#1e1e21; --line:#31313a; --ink:#ececf0; --muted:#9a9aa4;
+    --accent:#3fa08d; --accent-ink:#08110f;
+    --now:#f0907a; --now-bg:#3a1e18; --soon:#e0b45c; --soon-bg:#352b16;
+    --fine:#5cc0a9; --fine-bg:#122c26; --danger:#f0907a; --danger-bg:#3a1e18;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:24px 20px 140px}
+h1{font-size:19px;margin:0;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 12px;letter-spacing:-.01em}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted);
+  overflow-wrap:anywhere}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:16px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.tiny{font-size:12px}
+button{font:inherit;border-radius:7px;border:1px solid var(--line);background:var(--panel);
+  color:var(--ink);padding:7px 13px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;
+  padding:11px 22px}
+button.danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:600}
+button.link{border:none;background:none;color:var(--accent);padding:2px 4px;text-decoration:underline}
+.verdict{display:flex;gap:16px;align-items:flex-start;border-radius:10px;padding:18px;border:1px solid}
+.verdict.now{background:var(--now-bg);border-color:var(--now);color:var(--now)}
+.verdict.soon{background:var(--soon-bg);border-color:var(--soon);color:var(--soon)}
+.verdict.fine{background:var(--fine-bg);border-color:var(--fine);color:var(--fine)}
+.verdict .badge{font-size:26px;line-height:1}
+.verdict h2{color:inherit;font-size:17px;margin:0 0 4px}
+.verdict p{margin:0;color:inherit;opacity:.9;font-size:14px}
+.signals{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:7px}
+.signals li{display:flex;gap:10px;align-items:baseline;font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
+.dot.high{background:var(--now)} .dot.watch{background:var(--soon)} .dot.ok{background:var(--muted)}
+.sig-val{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+.blocker{background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);
+  border-radius:10px;padding:16px;margin-top:16px}
+.blocker ul{margin:8px 0 0;padding-left:18px;font-size:13px}
+.guide{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.guide li{display:flex;gap:10px;font-size:14px;align-items:flex-start}
+.guide .mark{flex:0 0 auto;opacity:.75}
+.opts{display:grid;gap:10px}
+.opt{display:flex;gap:10px;align-items:flex-start}
+.opt input[type=checkbox]{margin-top:5px;flex:0 0 auto;width:16px;height:16px;accent-color:var(--accent)}
+.opt .label{font-size:14px}
+.nums{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+.num{display:flex;flex-direction:column;gap:4px}
+.num input{width:88px;font:inherit;padding:5px 8px;border-radius:6px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink)}
+.session-search{min-width:220px;flex:1;font:inherit;padding:6px 9px;border-radius:7px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.group{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.group:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.group-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.group-head strong{font-size:14px}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.items li{display:flex;gap:10px;align-items:baseline;padding:5px 7px;border-radius:6px}
+.items li:hover{background:var(--bg)}
+.items li.off{opacity:.4}
+.items input{margin-top:4px;flex:0 0 auto;width:15px;height:15px;accent-color:var(--accent)}
+.items .txt{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow-wrap:anywhere}
+.items .sz{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);
+  white-space:nowrap;padding-left:10px}
+.session-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}
+.session-list{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px}
+.session-list .state{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 7px;
+  white-space:nowrap;color:var(--muted)}
+.session-list .state.ready{border-color:var(--fine);color:var(--fine)}
+.session-list .state.stale,.session-list .state.invalid{border-color:var(--soon);color:var(--soon)}
+.session-list .meta{display:flex;gap:6px;align-items:center;margin-left:auto;padding-left:8px}
+.session-main{min-width:0;display:flex;flex-direction:column;line-height:1.35}
+.session-main .txt{white-space:normal}
+.importance{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 7px;white-space:nowrap}
+.importance.protect{color:var(--now);border-color:var(--now)}
+.importance.review,.importance.unknown{color:var(--soon);border-color:var(--soon)}
+.importance.safe,.importance.low{color:var(--fine);border-color:var(--fine)}
+.importance.archived{color:var(--muted)}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+  font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0 0;max-height:230px;overflow:auto}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+  padding:14px 20px}
+.bar .inner{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.bar .sum{font-size:13px;color:var(--muted)}
+.bar .sum b{color:var(--ink);font-variant-numeric:tabular-nums}
+.right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.result{margin-top:16px;border-radius:10px;padding:16px;border:1px solid var(--line);background:var(--panel)}
+.result.bad{border-color:var(--danger);color:var(--danger);background:var(--danger-bg)}
+.result.good{border-color:var(--fine);background:var(--fine-bg);color:var(--fine)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toggle{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>codex-tidy</h1>
+    <span class="path" id="home"></span>
+    <div class="right">
+      <label class="toggle"><input type="checkbox" id="reveal" checked> 실제 이름 보기</label>
+      <button id="refresh">다시 검사</button>
+    </div>
+  </header>
+  <p class="tiny muted" id="privacy-note">
+    로컬에서 구분할 수 있도록 세션 이름을 표시합니다. 화면을 공유할 때는 ‘실제 이름 보기’를 끄세요.
+  </p>
+
+  <div id="app"><p class="muted">검사하는 중…</p></div>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <div class="sum" id="summary">…</div>
+    <div class="right">
+      <button id="restore">마지막 정리 되돌리기</button>
+      <button id="quit">종료</button>
+      <button id="generate" disabled>Handoff 생성</button>
+      <button class="primary" id="clean" disabled>정리하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// Korean copy for the language-neutral codes the core emits. The CLI keeps its
+// own English table against exactly these codes; neither side invents wording.
+const VERDICT = {
+  now:  {icon:"!", title:"지금 정리하는 게 좋습니다", body:"아래 항목들이 이미 체감될 만큼 쌓였습니다."},
+  soon: {icon:"~", title:"아직 더 쓰셔도 됩니다", body:"급하지는 않지만 조만간 한 번 정리해두면 좋습니다."},
+  fine: {icon:"✓", title:"아직 정리하지 않으셔도 됩니다", body:"성능에 영향을 줄 만한 신호가 없습니다."}
+};
+// "정리할 게 없다"와 "정리할 항목은 있지만 급하지 않다"는 다른 상황입니다.
+function verdictBody(a, itemCount){
+  if (a.verdict !== "fine") return VERDICT[a.verdict].body;
+  return itemCount
+    ? "성능에 영향을 줄 만한 신호가 없습니다. 아래 항목을 지금 정리해도 되지만 급하지는 않습니다."
+    : "지금 상태로 계속 쓰셔도 됩니다. 옮길 항목도 없습니다.";
+}
+const SIGNAL = {
+  hot_path:  "자주 읽는 위치에 남아 있는 오래된 세션",
+  metadata:  "가장 긴 스레드 표시용 메타데이터",
+  logs:      "로그 데이터베이스",
+  leftovers: "쓰다 만 임시 파일",
+  orphans:   "참조되지 않는 대화 기록 파일",
+  worktrees: "오래된 워크트리",
+  disk_free: "디스크 여유 공간",
+  dangling:  "기록 파일이 사라진 스레드"
+};
+const SIGNAL_NOTE = {
+  hot_path:  "Codex가 계속 읽는 폴더라서 쌓일수록 느려집니다.",
+  metadata:  "제목·미리보기가 길면 대화를 열기도 전에 목록이 버벅입니다.",
+  logs:      "기록 전용이라 지나간 내용은 다시 쓰이지 않습니다.",
+  leftovers: "저장이 중간에 끊겼을 때 남은 찌꺼기입니다. 아무도 다시 읽지 않습니다.",
+  orphans:   "어느 스레드에도 연결돼 있지 않아 날짜 기준 정리로는 절대 지워지지 않습니다.",
+  worktrees: "용량은 크지만 아직 쓰고 계실 수 있어 기준을 높게 잡았습니다.",
+  disk_free: "여유 공간이 부족하면 정리 우선순위가 올라갑니다.",
+  dangling:  "정리로 해결되지 않습니다. 해당 스레드는 이어서 쓸 수 없습니다."
+};
+const GUIDE = {
+  codex_running: p => `Codex가 아직 실행 중입니다 (프로세스 ${p.count}개). 먼저 완전히 종료해 주세요.`,
+  handoff_before_archive: p =>
+    `아카이브 대상 세션이 ${p.count}개 있습니다. 이어서 작업할 가능성이 있는 대화는 아카이브 전에 인수인계 노트를 남겨두세요. 파일은 보존되지만, 노트를 두고 새 스레드에서 시작하는 편이 실제로 빠릅니다.`,
+  dirty_worktrees_excluded: p =>
+    `커밋하지 않은 변경이 있는 워크트리 ${p.count}개는 목록에서 제외했습니다. 옮기기만 하는 작업이지만, 작업 중인 폴더를 못 찾으면 잃어버린 것과 같으니까요.`,
+  pinned_protected: p => `고정해 둔 세션 ${p.count}개는 어떤 경우에도 건드리지 않습니다.`,
+  large_but_recent: p => `용량이 크지만 최근에 쓴 세션 ${p.count}개는 그대로 두었습니다.`,
+  dangling_rows: p => `기록 파일이 이미 사라진 스레드가 ${p.count}개 있습니다. 정리해도 복구되지 않습니다.`,
+  append_only_not_undone: p =>
+    `되돌리기로 복구되지 않는 작업이 ${p.count}건 포함됩니다. 이름 변경 기록을 덧붙이는 것뿐이라 그대로 두어도 무해합니다.`,
+  task_declined: p => `${p.task} 항목은 안전하지 않다고 판단해 건너뜁니다: ${p.reason}`,
+  backup_location: p => `백업과 되돌리기 기록은 여기에 저장됩니다: ${p.path}`,
+  nothing_to_do: () => "실행할 작업이 없습니다."
+};
+const TASK = {
+  sessions:"오래된 세션 기록", "thread-meta":"스레드 제목·미리보기", integrity:"연결 끊긴 기록 파일",
+  worktrees:"오래된 워크트리", logs:"로그 데이터베이스", leftovers:"쓰다 만 임시 파일",
+  config:"config.toml의 죽은 항목", winpaths:"윈도우 확장 경로", environment:"환경"
+};
+const TASK_NOTE = {
+  sessions:"파일을 지우지 않고 archived_sessions/ 로 옮긴 뒤 DB가 새 위치를 가리키게 합니다.",
+  "thread-meta":"목록에 보이는 제목·미리보기만 줄입니다. 대화 내용은 건드리지 않습니다.",
+  integrity:"어느 스레드에도 연결되지 않은 파일을 옆으로 옮깁니다.",
+  worktrees:"archived_worktrees/ 로 옮깁니다. 커밋 안 된 변경이 있으면 제외됩니다.",
+  logs:"archived_logs/ 로 옮깁니다.",
+  leftovers:"저장이 끊겨 남은 임시 파일을 옆으로 옮깁니다.",
+  config:"존재하지 않는 폴더를 가리키는 항목만 지웁니다. 나머지 설정은 그대로입니다.",
+  winpaths:"\\\\?\\ 로 시작하는 경로를 일반 형태로 바꿉니다."
+};
+const OPTIONS = [
+  ["repair_thread_metadata","긴 스레드 제목·미리보기 줄이기","목록 렌더링이 느려지는 주된 원인입니다. 대화 내용은 그대로입니다."],
+  ["archive_leftovers","쓰다 만 임시 파일 치우기","저장이 중간에 끊겨 남은 파일입니다."],
+  ["archive_orphan_rollouts","연결 끊긴 기록 파일 치우기","날짜 기준 정리로는 닿지 않는 파일입니다."],
+  ["archive_dirty_worktrees","커밋 안 된 워크트리도 옮기기","기본값은 제외입니다. 켜기 전에 한 번 더 확인하세요."]
+];
+const NUMS = [
+  ["session_age_days","세션 기준(일)"],
+  ["worktree_age_days","워크트리 기준(일)"],
+  ["log_rotate_mb","로그 기준(MB)"],
+  ["leftover_age_days","임시 파일 기준(일)"]
+];
+const HANDOFF = `이 저장소/세션의 인수인계 문서를 만들어 주세요. Codex 기록을 아카이브하기 전에 남겨둘 것입니다.
+
+포함할 내용:
+- 저장소 경로와 브랜치
+- 현재 목표
+- 이미 끝낸 것
+- 건드렸거나 살펴본 파일
+- 이미 실행한 명령/테스트
+- 알려진 오류, 경고, 실패하는 검사
+- 아직 정하지 못한 것
+- 제약 조건과 건드리면 안 되는 부분
+- 다음에 할 구체적인 3~7단계
+
+마지막에, 새 Codex 대화에 그대로 붙여넣으면 이 문서만 보고 이어서 작업할 수 있는 재시작 프롬프트도 넣어 주세요.`;
+
+let state = null;
+const excluded = new Set();
+const selectedSessions = new Set();
+const selectedArchives = new Set();
+let handoffSelectionInitialized = false;
+let busy = false;
+let showChildSessions = false;
+let sessionFilter = "";
+let archiveFilter = "";
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function size(n){
+  if (n === null || n === undefined) return "-";
+  const u = [["TB",2**40],["GB",2**30],["MB",2**20],["KB",2**10]];
+  for (const [label, scale] of u) if (Math.abs(n) >= scale) return (n/scale).toFixed(2)+" "+label;
+  return n + " B";
+}
+function when(stamp){
+  if (!stamp) return "날짜 불명";
+  const ms = stamp > 1e11 ? stamp : stamp * 1000;
+  return new Date(ms).toLocaleDateString("ko-KR");
+}
+function sigValue(s){
+  if (s.unit === "bytes") return size(s.value);
+  if (s.unit === "chars") return s.value.toLocaleString("ko-KR") + "자";
+  return s.value.toLocaleString("ko-KR") + "개";
+}
+function readOptions(){
+  const out = {reveal: $("reveal").checked};
+  for (const [key] of OPTIONS){ const el = $("o-"+key); if (el) out[key] = el.checked; }
+  for (const [key] of NUMS){ const el = $("n-"+key); if (el && el.value !== "") out[key] = el.value; }
+  return out;
+}
+async function api(path, body){
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: body ? {"Content-Type":"application/json","X-Codex-Tidy":"1"} : {},
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return res.json();
+}
+
+async function load(){
+  busy = true; paintBar();
+  const params = new URLSearchParams();
+  const opts = state ? readOptions() : {reveal: $("reveal").checked};
+  for (const [k, v] of Object.entries(opts)) params.set(k, typeof v === "boolean" ? (v?"1":"0") : v);
+  try {
+    state = await api("/api/state?" + params.toString());
+    if (state.sessions){
+      const live = new Set(state.sessions.map(s=>s.key));
+      for (const key of selectedSessions) if (!live.has(key)) selectedSessions.delete(key);
+      if (!handoffSelectionInitialized){
+        // Fresh parent Handoffs are the persisted "continue this project" set.
+        for (const item of state.sessions){
+          if (!item.is_child && item.handoff && item.handoff.ready) selectedSessions.add(item.key);
+        }
+        handoffSelectionInitialized = true;
+      }
+    }
+    if (state.archives){
+      const liveArchives = new Set(state.archives.map(a=>a.key));
+      for (const key of selectedArchives) if (!liveArchives.has(key)) selectedArchives.delete(key);
+    }
+  } catch (e) {
+    $("app").innerHTML = `<div class="blocker">화면을 새로 고칠 수 없습니다. 터미널에서 codex-tidy가 아직 실행 중인지 확인해 주세요.</div>`;
+    busy = false; return;
+  }
+  busy = false;
+  render();
+}
+
+function render(){
+  if (state.error){
+    $("app").innerHTML = `<div class="blocker">${esc(state.error)}</div>`;
+    paintBar(); return;
+  }
+  $("home").textContent = state.home;
+  const a = state.assessment;
+  const v = VERDICT[a.verdict] || VERDICT.fine;
+  const out = [];
+
+  out.push(`<div class="verdict ${esc(a.verdict)}">
+    <div class="badge">${v.icon}</div>
+    <div style="flex:1">
+      <h2>${v.title}</h2><p>${esc(verdictBody(a, state.items.length))}</p>
+      <ul class="signals">${a.signals.filter(s=>s.severity!=="ok").map(s=>`
+        <li><span class="dot ${esc(s.severity)}"></span>
+          <span><b>${esc(SIGNAL[s.code]||s.code)}</b>
+            <span class="tiny" style="opacity:.8;display:block">${esc(SIGNAL_NOTE[s.code]||"")}</span>
+          </span>
+          <span class="sig-val">${esc(sigValue(s))}</span></li>`).join("")
+        || `<li class="tiny">눈에 띄는 신호가 없습니다.</li>`}</ul>
+    </div></div>`);
+
+  if (state.codex_running.length){
+    out.push(`<div class="blocker"><b>Codex가 실행 중이라 정리를 시작할 수 없습니다.</b>
+      <ul>${state.codex_running.map(p=>`<li>pid ${p.pid} ${esc(p.name)} — ${esc(p.reason)}</li>`).join("")}</ul>
+      <p class="small" style="margin:10px 0 0">Codex를 완전히 종료한 뒤 <b>다시 검사</b>를 눌러 주세요.</p></div>`);
+  }
+
+  const guides = a.guidance.filter(g => GUIDE[g.code]);
+  if (guides.length){
+    out.push(`<div class="card"><h2>먼저 읽어보세요</h2>
+      <ul class="guide">${guides.map(g=>`<li><span class="mark">•</span><span>${esc(GUIDE[g.code](g.params))}</span></li>`).join("")}</ul>
+      <p class="small muted" style="margin:14px 0 0">
+        인수인계 노트가 필요하면 아래 프롬프트를 Codex 대화에 붙여넣으세요.
+        <button class="link" id="copy-handoff">복사</button></p>
+      <pre id="handoff">${esc(HANDOFF)}</pre></div>`);
+  }
+
+  const sessions = state.sessions || [];
+  if (sessions.length){
+    const rootSessions = sessions.filter(s=>!s.is_child);
+    const childCount = sessions.length - rootSessions.length;
+    const query = sessionFilter.trim().toLocaleLowerCase("ko-KR");
+    const visibleSessions = (showChildSessions?sessions:rootSessions).filter(s=>
+      !query || `${s.label||""} ${s.project||""}`.toLocaleLowerCase("ko-KR").includes(query));
+    const readyCount = rootSessions.filter(s=>s.handoff && s.handoff.ready).length;
+    out.push(`<div class="card"><h2>계속할 프로젝트 Handoff (${rootSessions.length}개)</h2>
+      <div class="session-tools small muted">
+        <span>앞으로 계속할 프로젝트만 체크하세요. 완료된 세션은 Handoff 없이 아카이브할 수 있습니다.</span>
+        <input class="session-search" id="session-search" value="${esc(sessionFilter)}" placeholder="작업 이름 또는 프로젝트 검색">
+        <span class="right"><b>${readyCount}</b>개 준비됨 · ${childCount}개 내부 기록 ${showChildSessions?"표시 중":"숨김"} ·
+          <button class="link" id="toggle-children">${showChildSessions?"내부 기록 숨기기":"내부/자식 보기"}</button> ·
+          <button class="link" id="cleanup-sessions">정리 대상만 선택</button> ·
+          <button class="link" id="all-sessions">전체 선택/해제</button></span>
+      </div>
+      <ul class="items session-list">${visibleSessions.length?visibleSessions.map(s=>{
+        const hs = s.handoff || {state:"missing",ready:false};
+        const imp = s.importance || {level:"unknown",label:"판단 필요",reason:"판단 근거 없음"};
+        const stateLabel = hs.ready ? "준비됨" : hs.state === "stale" ? "오래됨" : hs.state === "invalid" ? "손상됨" : hs.state === "incomplete" ? "근거 부족" : "미생성";
+        return `<li class="${selectedSessions.has(s.key)?"":"off"}">
+          <input type="checkbox" data-session-key="${esc(s.key)}" ${selectedSessions.has(s.key)?"checked":""}>
+          <span class="session-main"><span class="txt">${esc(s.label)}</span>
+            <span class="tiny muted">${esc(imp.reason)} · ${when(s.updated_at)}${s.project?` · ${esc(s.project)}`:""}</span></span>
+          <span class="meta"><span class="importance ${esc(imp.level)}">${esc(imp.label)}</span>
+            <span class="state ${esc(hs.state)}">${stateLabel}</span>
+            ${s.pinned?'<span class="state">고정</span>':""}${s.archived?'<span class="state">아카이브</span>':""}
+            <span class="sz">${size(s.bytes)}</span></span></li>`;
+      }).join(""):'<li class="muted small">조건에 맞는 작업이 없습니다.</li>'}</ul>
+      <p class="tiny muted" style="margin:10px 0 0">저장 위치: ${esc(state.handoff_root || "")}</p></div>`);
+  }
+
+  const archives = state.archives || [];
+  const archiveQuery = archiveFilter.trim().toLocaleLowerCase("ko-KR");
+  const visibleArchives = archives.filter(a=>!archiveQuery ||
+    `${a.label||""} ${a.project||""}`.toLocaleLowerCase("ko-KR").includes(archiveQuery));
+  const selectedArchiveItems = archives.filter(a=>selectedArchives.has(a.key));
+  const archiveBytes = archives.reduce((sum,a)=>sum+a.bytes,0);
+  const linkedArchiveCount = archives.filter(a=>a.linked).length;
+  const selectedArchiveBytes = selectedArchiveItems.reduce((sum,a)=>sum+a.bytes,0);
+  out.push(`<div class="card"><h2>세션 아카이브 영구 삭제 (${archives.length}개 · ${size(archiveBytes)})</h2>
+    <p class="small muted">DB 연결 ${linkedArchiveCount}개 · 고아 파일 ${archives.length-linkedArchiveCount}개. 선택한 원본 JSONL과 연결된 DB 기록을 완전히 제거하며 되돌릴 수 없습니다.</p>
+    <div class="session-tools small muted">
+      <input class="session-search" id="archive-search" value="${esc(archiveFilter)}" placeholder="아카이브 제목 또는 프로젝트 검색">
+      <span class="right">선택 <b>${selectedArchiveItems.length}</b>개 · ${size(selectedArchiveBytes)} ·
+        <button class="link" id="all-archives">현재 목록 전체 선택/해제</button></span>
+    </div>
+    <ul class="items session-list">${visibleArchives.length?visibleArchives.map(a=>`<li class="${selectedArchives.has(a.key)?"":"off"}">
+      <input type="checkbox" data-archive-key="${esc(a.key)}" ${selectedArchives.has(a.key)?"checked":""}>
+      <span class="session-main"><span class="txt">${esc(a.label)}</span>
+        <span class="tiny muted">${when(a.updated_at)}${a.project?` · ${esc(a.project)}`:""} · ${a.linked?"DB 연결":"고아 파일"} · ${esc(a.path)}</span></span>
+      <span class="sz">${size(a.bytes)}</span></li>`).join(""):'<li class="muted small">표시할 아카이브가 없습니다.</li>'}</ul>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="danger" id="purge-archives" ${selectedArchives.size?"":"disabled"}>선택한 아카이브 영구 삭제</button>
+    </div>
+    <p class="tiny muted" style="margin:10px 0 0">위치: ${esc(state.archive_root||"")}</p></div>`);
+
+  out.push(`<div class="card"><h2>무엇을 정리할지</h2><div class="opts">
+    ${OPTIONS.map(([key,label,note])=>`<label class="opt">
+      <input type="checkbox" id="o-${key}" ${state.options[key]?"checked":""}>
+      <span class="label">${esc(label)}<span class="tiny muted" style="display:block">${esc(note)}</span></span>
+    </label>`).join("")}
+    <div class="nums">${NUMS.map(([key,label])=>`<label class="num">
+      <span class="tiny muted">${esc(label)}</span>
+      <input type="number" id="n-${key}" value="${esc(state.options[key])}" min="0">
+    </label>`).join("")}</div></div>
+    <p class="tiny muted" style="margin:12px 0 0">바꾸면 자동으로 다시 검사합니다.</p></div>`);
+
+  const groups = {};
+  for (const item of state.items) (groups[item.task] ||= []).push(item);
+  const sessionByKey = new Map((state.sessions||[]).map(s=>[s.key,s]));
+  const names = Object.keys(groups);
+
+  if (names.length){
+    out.push(`<div class="card"><h2>정리 대상 (${state.items.length}개)</h2>
+      <p class="small muted" style="margin:-6px 0 14px">
+        체크를 해제한 항목은 이번 정리에서 제외됩니다. 어느 것도 삭제되지 않고 옆으로 옮겨질 뿐이며, 끝난 뒤 되돌릴 수 있습니다.</p>
+      ${names.map(task=>{
+        const list = groups[task];
+        const on = list.filter(i=>!excluded.has(i.key));
+        // Both numbers must follow the checkboxes; a stale total reads as a lie.
+        const onBytes = on.reduce((s,i)=>s+i.bytes,0);
+        const allBytes = list.reduce((s,i)=>s+i.bytes,0);
+        return `<div class="group"><div class="group-head">
+            <strong>${esc(TASK[task]||task)}</strong>
+            <span class="tiny muted">${on.length}/${list.length} 선택 · ${size(onBytes)}${
+              onBytes !== allBytes ? ` <span style="opacity:.7">(전체 ${size(allBytes)})</span>` : ""}</span>
+            <span class="right"><button class="link" data-all="${esc(task)}">전체 선택/해제</button></span>
+          </div>
+          <p class="tiny muted" style="margin:-4px 0 8px">${esc(TASK_NOTE[task]||"")}</p>
+          <ul class="items">${list.map(i=>{
+            const linked = i.task==="sessions" ? sessionByKey.get(i.key) : null;
+            const imp = linked && linked.importance;
+            return `<li class="${excluded.has(i.key)?"off":""}">
+              <input type="checkbox" data-key="${esc(i.key)}" ${excluded.has(i.key)?"":"checked"}>
+              <span class="session-main"><span class="txt">${esc(linked?linked.label:i.label)}</span>
+                ${imp?`<span class="tiny muted">${esc(imp.reason)} · ${when(linked.updated_at)}</span>`:""}</span>
+              ${imp?`<span class="importance ${esc(imp.level)}">${esc(imp.label)}</span>`:""}
+              <span class="sz">${i.bytes?size(i.bytes):""}</span></li>`;
+          }).join("")}</ul></div>`;
+      }).join("")}</div>`);
+  } else {
+    out.push(`<div class="card"><h2>정리 대상</h2>
+      <p class="muted small">지금 옮길 항목이 없습니다. 위 체크박스를 켜면 대상이 늘어날 수 있습니다.</p></div>`);
+  }
+
+  if (Object.keys(state.skipped||{}).length){
+    out.push(`<div class="card"><h2>건너뛴 검사</h2><ul class="guide">
+      ${Object.entries(state.skipped).map(([k,r])=>
+        `<li><span class="mark">–</span><span>${esc(TASK[k]||k)}: <span class="muted">${esc(r)}</span></span></li>`).join("")}
+    </ul></div>`);
+  }
+
+  $("app").innerHTML = out.join("");
+  wire();
+  paintBar();
+}
+
+function wire(){
+  document.querySelectorAll('[data-session-key]').forEach(box=>{
+    box.onchange = () => {
+      const key = box.dataset.sessionKey;
+      if (box.checked) selectedSessions.add(key); else selectedSessions.delete(key);
+      box.closest("li").classList.toggle("off", !box.checked);
+      paintBar();
+    };
+  });
+  const allSessions = $("all-sessions");
+  if (allSessions) allSessions.onclick = () => {
+    const query = sessionFilter.trim().toLocaleLowerCase("ko-KR");
+    const keys = (state.sessions||[]).filter(s=>(showChildSessions||!s.is_child) &&
+      (!query || `${s.label||""} ${s.project||""}`.toLocaleLowerCase("ko-KR").includes(query))).map(s=>s.key);
+    const allOn = keys.every(k=>selectedSessions.has(k));
+    keys.forEach(k=>allOn?selectedSessions.delete(k):selectedSessions.add(k));
+    render();
+  };
+  const cleanupSessions = $("cleanup-sessions");
+  if (cleanupSessions) cleanupSessions.onclick = () => {
+    selectedSessions.clear();
+    const visible = new Set((state.sessions||[]).filter(s=>showChildSessions||!s.is_child).map(s=>s.key));
+    for (const item of state.items||[]){
+      if (item.task==="sessions" && !excluded.has(item.key) && visible.has(item.key)) selectedSessions.add(item.key);
+    }
+    render();
+  };
+  const toggleChildren = $("toggle-children");
+  if (toggleChildren) toggleChildren.onclick = () => { showChildSessions=!showChildSessions; render(); };
+  const search = $("session-search");
+  if (search) search.oninput = () => {
+    sessionFilter=search.value;
+    const pos=search.selectionStart;
+    render();
+    const next=$("session-search");
+    if(next){ next.focus(); next.setSelectionRange(pos,pos); }
+  };
+  document.querySelectorAll('[data-archive-key]').forEach(box=>{
+    box.onchange = () => {
+      const key=box.dataset.archiveKey;
+      if(box.checked) selectedArchives.add(key); else selectedArchives.delete(key);
+      render();
+    };
+  });
+  const allArchives=$("all-archives");
+  if(allArchives) allArchives.onclick=()=>{
+    const query=archiveFilter.trim().toLocaleLowerCase("ko-KR");
+    const keys=(state.archives||[]).filter(a=>!query ||
+      `${a.label||""} ${a.project||""}`.toLocaleLowerCase("ko-KR").includes(query)).map(a=>a.key);
+    const allOn=keys.length>0 && keys.every(k=>selectedArchives.has(k));
+    keys.forEach(k=>allOn?selectedArchives.delete(k):selectedArchives.add(k));
+    render();
+  };
+  const archiveSearch=$("archive-search");
+  if(archiveSearch) archiveSearch.oninput=()=>{
+    archiveFilter=archiveSearch.value;
+    const pos=archiveSearch.selectionStart;
+    render();
+    const next=$("archive-search");
+    if(next){next.focus();next.setSelectionRange(pos,pos);}
+  };
+  const purge=$("purge-archives");
+  if(purge) purge.onclick=purgeArchives;
+  // Cleanup exclusions and Handoff selections live in separate sets.  Limiting
+  // this handler to data-key prevents it from overwriting data-session-key's
+  // onchange handler above.
+  document.querySelectorAll('.items input[data-key]').forEach(box=>{
+    box.onchange = () => {
+      const key = box.dataset.key;
+      if (box.checked) excluded.delete(key); else excluded.add(key);
+      box.closest("li").classList.toggle("off", !box.checked);
+      render();
+    };
+  });
+  document.querySelectorAll("[data-all]").forEach(btn=>{
+    btn.onclick = () => {
+      const task = btn.dataset.all;
+      const keys = state.items.filter(i=>i.task===task).map(i=>i.key);
+      const allOn = keys.every(k=>!excluded.has(k));
+      keys.forEach(k => allOn ? excluded.add(k) : excluded.delete(k));
+      render();
+    };
+  });
+  OPTIONS.forEach(([key])=>{ const el=$("o-"+key); if(el) el.onchange = load; });
+  NUMS.forEach(([key])=>{ const el=$("n-"+key); if(el) el.onchange = load; });
+  const copy = $("copy-handoff");
+  if (copy) copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(HANDOFF); copy.textContent="복사됨"; }
+    catch { const r=document.createRange(); r.selectNode($("handoff"));
+            getSelection().removeAllRanges(); getSelection().addRange(r); copy.textContent="선택됨"; }
+    setTimeout(()=>copy.textContent="복사", 1600);
+  };
+}
+
+function selected(){
+  if (!state || !state.items) return {count:0, bytes:0};
+  const on = state.items.filter(i=>!excluded.has(i.key));
+  const planned = new Set(on.filter(i=>i.task==="sessions").map(i=>i.key));
+  const forced = (state.sessions||[]).filter(s=>selectedSessions.has(s.key) &&
+    !s.archived && !planned.has(s.key));
+  return {
+    count:on.length+forced.length,
+    bytes:on.reduce((sum,i)=>sum+i.bytes,0)+forced.reduce((sum,i)=>sum+i.bytes,0),
+    forced:forced.length,
+  };
+}
+
+function missingCleanupHandoffs(){
+  if (!state || !state.items || !state.sessions) return [];
+  return state.sessions.filter(s=>selectedSessions.has(s.key) && !s.archived &&
+    !(s.handoff&&s.handoff.ready));
+}
+
+function paintBar(){
+  const s = selected();
+  const blocked = state && state.codex_running && state.codex_running.length > 0;
+  $("summary").innerHTML = busy
+    ? `<span class="spin"></span> 작업 중…`
+    : (state && !state.error
+        ? `선택 <b>${s.count}</b>개 · <b>${size(s.bytes)}</b> 이동${s.forced?` · Handoff 프로젝트 ${s.forced}개 포함`:""}${excluded.size?` · 제외 ${excluded.size}개`:""}`
+        : "…");
+  const clean = $("clean");
+  const missing = missingCleanupHandoffs();
+  clean.disabled = busy || blocked || s.count === 0 || missing.length > 0;
+  clean.textContent = blocked ? "Codex 종료 필요" : missing.length ? `Handoff ${missing.length}개 필요` : "정리하기";
+  const generate = $("generate");
+  generate.disabled = busy || selectedSessions.size === 0;
+  generate.textContent = selectedSessions.size ? `Handoff ${selectedSessions.size}개 생성` : "Handoff 생성";
+  $("restore").disabled = busy || !(state && state.last_journal);
+}
+
+async function generateHandoffs(){
+  if (!selectedSessions.size) return;
+  if (!confirm(`선택한 ${selectedSessions.size}개 세션에서 로컬 Handoff 문서를 생성합니다.\n\n대화 내용은 외부로 전송되지 않습니다. 진행할까요?`)) return;
+  busy = true; paintBar();
+  const res = await api("/api/handoffs", {options: readOptions(), session_keys:[...selectedSessions]});
+  busy = false;
+  const failed = (res.results||[]).filter(i=>!i.ok);
+  await load();
+  const box = document.createElement("div");
+  box.className = "result " + (failed.length?"bad":"good");
+  box.innerHTML = failed.length
+    ? `<b>일부 Handoff를 만들지 못했습니다.</b> <span class="small">성공 ${res.generated||0}/${res.requested||0}</span><ul class="small">${failed.map(i=>`<li>${esc(i.error||i.key)}</li>`).join("")}</ul>`
+    : `<b>Handoff를 생성했습니다.</b> <span class="small">${res.generated||0}개 · ${esc(state.handoff_root||"")}</span>`;
+  $("app").prepend(box);
+}
+
+async function clean(){
+  const s = selected();
+  const cleanupSessionKeys = new Set((state.items||[])
+    .filter(i=>i.task==="sessions" && !excluded.has(i.key)).map(i=>i.key));
+  const activeProtected = (state.sessions||[]).filter(s=>selectedSessions.has(s.key) && !s.archived);
+  const protectedCount = activeProtected.length;
+  const withoutHandoff = [...cleanupSessionKeys].filter(k=>!selectedSessions.has(k)).length;
+  if (!confirm(`${s.count}개 항목(${size(s.bytes)})을 정리합니다.\n\n계속할 프로젝트 Handoff: ${protectedCount}개\nHandoff 없이 아카이브: ${withoutHandoff}개 세션\n\n영구 삭제가 아니라 백업 위치로 이동하며 되돌리기 기록을 남깁니다.\n진행할까요?`)) return;
+  busy = true; paintBar();
+  const res = await api("/api/apply", {options: readOptions(), excluded: [...excluded],
+    handoff_required: [...selectedSessions], allow_without_handoff: true});
+  busy = false;
+  showResult(res, "정리");
+  await load();
+}
+
+async function restore(){
+  if (!confirm("마지막 정리를 되돌립니다. 진행할까요?")) return;
+  busy = true; paintBar();
+  const res = await api("/api/restore", {options: readOptions()});
+  busy = false;
+  showResult(res, "되돌리기");
+  await load();
+}
+
+async function purgeArchives(){
+  const items=(state.archives||[]).filter(a=>selectedArchives.has(a.key));
+  if(!items.length) return;
+  const bytes=items.reduce((sum,a)=>sum+a.bytes,0);
+  const confirmation=prompt(`${items.length}개 아카이브(${size(bytes)})를 영구 삭제합니다.\n\n원본 대화와 DB 기록이 제거되며 되돌릴 수 없습니다.\n계속하려면 '영구 삭제'를 입력하세요.`);
+  if(confirmation!=="영구 삭제") return;
+  busy=true; paintBar();
+  const res=await api("/api/purge", {archive_keys:[...selectedArchives], confirmation});
+  busy=false;
+  const box=document.createElement("div");
+  box.className="result "+(res.ok?"good":"bad");
+  box.innerHTML=res.ok
+    ? `<b>영구 삭제했습니다.</b> <span class="small">${res.deleted||0}개 · ${size(res.deleted_bytes||0)} 확보</span>`
+    : `<b>영구 삭제를 완료하지 못했습니다.</b><ul class="small">${(res.blocked||res.failed||["알 수 없는 오류"]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
+  selectedArchives.clear();
+  await load();
+  $("app").prepend(box);
+}
+
+function showResult(res, what){
+  const box = document.createElement("div");
+  if (res.blocked && res.blocked.length){
+    box.className = "result bad";
+    box.innerHTML = `<b>${what}를 시작하지 못했습니다.</b><ul class="small">${
+      res.blocked.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`;
+  } else if (res.nothing_to_do){
+    box.className = "result";
+    box.innerHTML = `<b>실행할 작업이 없었습니다.</b>`;
+  } else if (res.ok){
+    box.className = "result good";
+    box.innerHTML = what === "되돌리기"
+      ? `<b>되돌렸습니다.</b> <span class="small">${res.undone}건 복구</span>`
+      : `<b>정리했습니다.</b> <span class="small">${res.completed}/${res.planned}건 완료 ·
+         백업 ${esc(res.backup_root||"")}</span>`;
+  } else {
+    box.className = "result bad";
+    box.innerHTML = `<b>${what} 중 문제가 생겨 전부 되돌렸습니다.</b>
+      <div class="small">${esc(res.error||"")} · 복구 ${res.rolled_back||0}건</div>`;
+  }
+  $("app").prepend(box);
+  box.scrollIntoView({behavior:"smooth", block:"center"});
+}
+
+$("refresh").onclick = load;
+$("reveal").onchange = load;
+$("clean").onclick = clean;
+$("generate").onclick = generateHandoffs;
+$("restore").onclick = restore;
+$("quit").onclick = async () => {
+  await api("/api/shutdown", {});
+  document.body.innerHTML = '<div class="wrap"><p class="muted">codex-tidy를 종료했습니다. 이 탭을 닫으셔도 됩니다.</p></div>';
+};
+
+load();
+</script>
+</body>
+</html>

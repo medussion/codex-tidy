@@ -1,0 +1,39 @@
+codex-tidy
+Copyright (c) 2026 PuzzleOne
+
+Independence of implementation
+------------------------------
+This project contains no code from any other project. It was written from a
+functional brief: which categories of local Codex state are worth reporting on,
+and which are safe to move aside.
+
+The categories themselves were informed by "keep-codex-fast"
+(https://github.com/vibeforge1111/keep-codex-fast), an MIT-licensed tool with an
+overlapping purpose. Functional ideas are not subject to copyright, and because
+no source text, structure, or documentation was copied from it, that project's
+MIT notice does not need to travel with this one. It is credited here as a
+courtesy, not as a license obligation.
+
+Where this implementation deliberately differs:
+
+  * operations are journalled before execution and reversible afterwards, with a
+    single `restore` command instead of generated per-run scripts
+  * database updates derive their undo values from live rows at execution time
+  * every task declares the schema it requires and is skipped with a stated
+    reason when Codex ships something different
+  * the config.toml rewrite is validated by re-parsing and diffing before it is
+    allowed to run
+  * "is Codex running" is answered by which process holds the databases open,
+    rather than by matching process names
+  * scan is read-only by construction and covered by a test asserting the Codex
+    home is unchanged
+
+Third-party dependencies
+------------------------
+None. The Python standard library only.
+
+Trademarks
+----------
+Codex and OpenAI are trademarks of OpenAI. This project is an independent
+maintenance utility for local files created by Codex. It is not affiliated with,
+endorsed by, or sponsored by OpenAI.

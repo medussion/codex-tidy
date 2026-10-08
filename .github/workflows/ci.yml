@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows support is implemented but not yet verified; add it here once
+        # the suite has been run there.
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Compile
+        run: python -m compileall -q src tests
+
+      - name: Test
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Package builds and the entry point resolves
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          python -m pip install dist/*.whl
+          codex-tidy --help
+          codex-tidy doctor --codex-home "$RUNNER_TEMP/absent" || test $? -eq 2
+
+  guardrails:
+    name: Safety guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: No destructive filesystem calls outside the executor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Deleting user data is out of scope for this tool. The only unlink lives
+          # in ops.py (undoing a file we created) and env.py (releasing our lock).
+          banned = ("shutil.rmtree", "os.rmdir", "os.removedirs", "DROP TABLE", "drop table")
+          allowed_unlink = {"src/codex_tidy/ops.py", "src/codex_tidy/env.py"}
+
+          problems = []
+          for path in sorted(Path("src").rglob("*.py")):
+              text = path.read_text(encoding="utf-8")
+              rel = path.as_posix()
+              for needle in banned:
+                  if needle in text:
+                      problems.append(f"{rel}: contains {needle!r}")
+              if ".unlink(" in text and rel not in allowed_unlink:
+                  problems.append(f"{rel}: unlink outside the executor")
+          if problems:
+              raise SystemExit("\n".join(problems))
+          print("ok")
+          PY
+
+      - name: Every task declares a name and a title
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          from codex_tidy.tasks import ALL_TASKS
+          names = [t.name for t in ALL_TASKS]
+          assert all(names), "a task is missing its name"
+          assert len(names) == len(set(names)), f"duplicate task names: {names}"
+          assert all(t.title for t in ALL_TASKS), "a task is missing its title"
+          print("ok:", ", ".join(names))
+          PY
