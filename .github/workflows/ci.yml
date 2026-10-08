@@ -52,10 +52,17 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          # Deleting user data is out of scope for this tool. The only unlink lives
-          # in ops.py (undoing a file we created) and env.py (releasing our lock).
+          # Destructive filesystem calls stay confined to reviewed modules:
+          # ops.py undoes files created by us, env.py releases our lock, and
+          # purge.py deletes only exact staged archive selections after the
+          # separate typed-confirmation and fresh-key checks.
           banned = ("shutil.rmtree", "os.rmdir", "os.removedirs", "DROP TABLE", "drop table")
-          allowed_unlink = {"src/codex_tidy/ops.py", "src/codex_tidy/env.py"}
+          allowed_unlink = {
+              "src/codex_tidy/ops.py",
+              "src/codex_tidy/env.py",
+              "src/codex_tidy/purge.py",
+          }
+          allowed_rmdir = {"src/codex_tidy/purge.py"}
 
           problems = []
           for path in sorted(Path("src").rglob("*.py")):
@@ -66,6 +73,8 @@ jobs:
                       problems.append(f"{rel}: contains {needle!r}")
               if ".unlink(" in text and rel not in allowed_unlink:
                   problems.append(f"{rel}: unlink outside the executor")
+              if ".rmdir(" in text and rel not in allowed_rmdir:
+                  problems.append(f"{rel}: rmdir outside the purge staging cleanup")
           if problems:
               raise SystemExit("\n".join(problems))
           print("ok")

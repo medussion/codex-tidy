@@ -1,9 +1,9 @@
-"""A WAL-mode database with no -shm file must still be readable.
+"""A WAL-mode database copied without its sidecars must still be readable.
 
-A read-only SQLite connection is not permitted to create the -shm, so plain
-``mode=ro`` fails whenever it is absent -- most commonly on a Codex home that was
-copied without its sidecar files. Reading such a home must work, and must not
-fall back to stale data when a -wal is genuinely pending.
+SQLite builds differ here: some can open the copied database with ``mode=ro``
+and create a fresh ``-shm`` when the directory is writable, while others fail
+until ``immutable=1`` is used. The tests drive both branches explicitly and
+still forbid the immutable fallback when a real ``-wal`` is pending.
 """
 
 from __future__ import annotations
@@ -46,12 +46,20 @@ class WalDatabaseTest(unittest.TestCase):
         )
         self.home = FakeHome(self.root)
 
-    def test_the_database_is_wal_mode_without_sidecars(self) -> None:
+    def test_the_database_copy_has_no_sidecars(self) -> None:
         self.assertFalse(Path(f"{self.home.state_db}-wal").exists())
         self.assertFalse(Path(f"{self.home.state_db}-shm").exists())
-        plain = f"{self.home.state_db.resolve().as_uri()}?mode=ro"
-        with self.assertRaises(sqlite3.Error):
-            sqlite3.connect(plain, uri=True).execute("select count(*) from sqlite_master")
+
+        # immutable=1 reads only the main file, which verifies that the copied
+        # fixture is self-contained without assuming version-specific mode=ro
+        # behaviour.
+        target = f"{self.home.state_db.resolve().as_uri()}?mode=ro&immutable=1"
+        conn = sqlite3.connect(target, uri=True)
+        try:
+            row = conn.execute("select title from threads where id = 'old-1'").fetchone()
+            self.assertEqual(row[0], "still here")
+        finally:
+            conn.close()
 
     def test_readonly_connect_still_works(self) -> None:
         conn = db.connect(self.home.state_db, readonly=True)
@@ -60,8 +68,8 @@ class WalDatabaseTest(unittest.TestCase):
             self.assertEqual(row["title"], "still here")
         finally:
             conn.close()
-        # The fallback must not have created a shared-memory index.
-        self.assertFalse(Path(f"{self.home.state_db}-shm").exists())
+        # Some SQLite builds create a fresh -shm for the successful mode=ro
+        # connection. That is safe and is not evidence that the fallback failed.
 
     def test_immutable_fallback_is_refused_when_a_wal_exists(self) -> None:
         """The fallback must never engage while a -wal could hold newer data.
@@ -94,6 +102,8 @@ class WalDatabaseTest(unittest.TestCase):
         def recording_connect(target, *args, **kwargs):
             if isinstance(target, str) and target.startswith("file:"):
                 attempts.append(target)
+                if "immutable=1" not in target:
+                    raise sqlite3.OperationalError("unable to open database file")
             return real_connect(target, *args, **kwargs)
 
         with mock.patch("codex_tidy.db.sqlite3.connect", side_effect=recording_connect):

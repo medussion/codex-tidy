@@ -28,11 +28,10 @@ def quote_identifier(name: str) -> str:
 def connect(path: Path, *, readonly: bool) -> sqlite3.Connection:
     """Open the database, read-only by default.
 
-    A read-only connection to a WAL-mode database needs the ``-shm`` file to already
-    exist, because it is not permitted to create one. Plain ``mode=ro`` therefore
-    fails outright whenever the ``-shm`` is missing: a home that was copied without
-    its sidecars, a directory mounted read-only, or a database SQLite has since
-    tidied up. Codex is unreachable through no fault of the user.
+    Some SQLite builds can create or rebuild the ``-shm`` file for ``mode=ro``
+    when the directory is writable; others fail when the sidecar is missing or
+    the directory itself is read-only. That can make an otherwise self-contained
+    copied Codex home unreadable through no fault of the user.
 
     When no ``-wal`` is present there is nothing pending outside the main file, so
     it is self-contained and ``immutable=1`` is a safe fallback -- it skips the
